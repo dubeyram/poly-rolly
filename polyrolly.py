@@ -290,10 +290,10 @@ class Roller(Frame):
         self.roll_btn       = Button    (self, bd=1, text='\u21bb', relief='solid', font=('Verdana', 10), command=lambda: self.roll(single=True))
         self.name_entry     = Entry     (self, bd=1, width=16, relief='solid', textvariable=self.name                                                             )
         self.results_entry  = Entry     (self, bd=1, width=0 , relief='solid', textvariable=self.results, state='readonly', font=('Courier', 14), justify='center')
-        self.dice_qty_spin  = Spinbox   (self, to=99 , from_=1, width=2, relief='solid', state='readonly', textvariable=self.dice_qty              )
-        self.die_faces_spin = Spinbox   (self, to=100, from_=2, width=3, relief='solid', state='readonly', textvariable=self.die_faces, increment=2)
-        self.modifier_spin  = Spinbox   (self, to=99 , from_=0, width=2, relief='solid', state='readonly', textvariable=self.modifier              )
-        self.finalmod_spin  = Spinbox   (self, to=99 , from_=0, width=2, relief='solid', state='readonly', textvariable=self.finalmod              )
+        self.dice_qty_spin  = Spinbox   (self, to=99 , from_=1  , width=2, relief='solid', state='readonly', textvariable=self.dice_qty              )
+        self.die_faces_spin = Spinbox   (self, to=100, from_=2  , width=3, relief='solid', state='readonly', textvariable=self.die_faces, increment=2)
+        self.modifier_spin  = Spinbox   (self, to=100, from_=-99, width=3, relief='solid', state='readonly', textvariable=self.modifier              )
+        self.finalmod_spin  = Spinbox   (self, to=100, from_=-99, width=3, relief='solid', state='readonly', textvariable=self.finalmod              )
         self.dice_lbl       = Label     (self, text='\u00d7 (d', font=('Courier', 12))
         self.modifier_lbl   = Label     (self, text=' \u002b'  , font=('Courier', 12))
         self.finalmod_lbl   = Label     (self, text=') \u002b' , font=('Courier', 12))
@@ -310,7 +310,7 @@ class Roller(Frame):
         self.finalmod_lbl  .grid(row=index, column=7 , padx=(0, 0)                        )
         self.finalmod_spin .grid(row=index, column=8 , padx=(0, 0)                        )
         self.roll_btn      .grid(row=index, column=9 , padx=(4, 0) , sticky='ns'          )
-        self.results_entry .grid(row=index, column=10, padx=(4, 0) , sticky='ns' , ipadx=4)
+        self.results_entry .grid(row=index, column=10, padx=(4, 4) , sticky='ns' , ipadx=4)
 
         self.name     .set('Roller {}'.format(len(self.group.rollers) + 1))
         self.die_faces.set(10)
@@ -370,13 +370,15 @@ class Roller(Frame):
             self.group.rollers.remove(self)
 
     def roll(self, single=False):
-        result   = []
-        total    = 0
+        rolls = self.dice_qty .get()
+        sides = self.die_faces.get()
+        mod   = self.modifier .get()
+
         max_roll = sides + mod
         min_roll = 1     + mod
-        rolls    = self.dice_qty .get()
-        sides    = self.die_faces.get()
-        mod      = self.modifier .get()
+
+        result = []
+        total  = 0
 
         if self.group.mainframe.use_random_org.get():
             url = 'https://www.random.org/integers/?col={0}&num={0}&min={1}&max={2}&base=10&format=plain&rnd=new'
