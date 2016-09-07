@@ -167,8 +167,8 @@ class RollerGroup(LabelFrame):
 
         self.name = StringVar()
 
-        self.name_entry    = Entry     (self.control_frame, bd=1, width=16, relief='solid', textvariable=self.name)
-        self.menu_btn      = Menubutton(self.control_frame, bd=1, text='\u25E2', relief='solid', font=('Verdana',  8)                         )
+        self.name_entry    = Entry     (self.control_frame, bd=1, width=16, relief='solid', font=('Verdana', 12), textvariable=self.name)
+        self.menu_btn      = Menubutton(self.control_frame, bd=1, text='\u25E2', relief='solid', font=('Courier',  8)                         )
         self.roll_btn      = Button    (self.control_frame, bd=1, text='\u21bb', relief='solid', font=('Verdana', 10), command=self.roll_group)
         self.hist_prev_btn = Button    (self.control_frame, bd=1, text='\u25c0', relief='solid', repeatdelay=250, repeatinterval=100, command=lambda: self.navigate_history(offset=-1))
         self.hist_next_btn = Button    (self.control_frame, bd=1, text='\u25b6', relief='solid', repeatdelay=250, repeatinterval=100, command=lambda: self.navigate_history(offset= 1))
@@ -286,35 +286,38 @@ class Roller(Frame):
         self.finalmod  = IntVar()
         self.results   = StringVar()
 
-        self.menu_btn       = Menubutton(self, bd=1, text='\u25E2', relief='solid', font=('Verdana',  8)                                        )
+        default_font        = ('Courier', 14)
+        self.menu_btn       = Menubutton(self, bd=1, text='\u25E2', relief='solid', font=('Courier',  8)                                        )
         self.roll_btn       = Button    (self, bd=1, text='\u21bb', relief='solid', font=('Verdana', 10), command=lambda: self.roll(single=True))
-        self.name_entry     = Entry     (self, bd=1, width=16, relief='solid', textvariable=self.name                                                             )
-        self.results_entry  = Entry     (self, bd=1, width=0 , relief='solid', textvariable=self.results, state='readonly', font=('Courier', 14), justify='center')
-        self.dice_qty_spin  = Spinbox   (self, to=99 , from_=1  , width=2, relief='solid', state='readonly', textvariable=self.dice_qty              )
-        self.die_faces_spin = Spinbox   (self, to=100, from_=2  , width=3, relief='solid', state='readonly', textvariable=self.die_faces, increment=2)
-        self.modifier_spin  = Spinbox   (self, to=100, from_=-99, width=3, relief='solid', state='readonly', textvariable=self.modifier              )
-        self.finalmod_spin  = Spinbox   (self, to=100, from_=-99, width=3, relief='solid', state='readonly', textvariable=self.finalmod              )
-        self.dice_lbl       = Label     (self, text='\u00d7 (d', font=('Courier', 12))
-        self.modifier_lbl   = Label     (self, text=' \u002b'  , font=('Courier', 12))
-        self.finalmod_lbl   = Label     (self, text=') \u002b' , font=('Courier', 12))
+        self.name_entry     = Entry     (self, bd=1, width=16, relief='solid', textvariable=self.name   , font=('Verdana' , 12)                                )
+        self.results_entry  = Entry     (self, bd=0, width=0 , relief='solid', textvariable=self.results, state='readonly', font=default_font, justify='center')
+        self.dice_qty_spin  = Spinbox   (self, bd=0, to=99 , from_=1  , width=2, relief='solid', state='readonly', textvariable=self.dice_qty , font=default_font             )
+        self.die_faces_spin = Spinbox   (self, bd=0, to=100, from_=2  , width=3, relief='solid', state='readonly', textvariable=self.die_faces, font=default_font, increment=2)
+        self.modifier_spin  = Spinbox   (self, bd=0, to=100, from_=-99, width=3, relief='solid', state='readonly', textvariable=self.modifier , font=default_font             )
+        self.finalmod_spin  = Spinbox   (self, bd=0, to=100, from_=-99, width=3, relief='solid', state='readonly', textvariable=self.finalmod , font=default_font             )
+        self.dice_lbl       = Label     (self, text=' \u00d7 (d', font=default_font)
+        self.modifier_lbl   = Label     (self, text='\u002b'    , font=default_font)
+        self.finalmod_lbl   = Label     (self, text='\u002b'    , font=default_font)
+        self.close_lbl      = Label     (self, text=')'         , font=default_font)
 
         self.menu_btn.config(menu=self.create_menu())
 
-        self.menu_btn      .grid(row=index, column=0 , padx=(4, 0)                        )
-        self.name_entry    .grid(row=index, column=1 , padx=(4, 0)                        )
-        self.dice_qty_spin .grid(row=index, column=2 , padx=(4, 0)                        )
-        self.dice_lbl      .grid(row=index, column=3 , padx=(0, 0)                        )
-        self.die_faces_spin.grid(row=index, column=4 , padx=(0, 0)                        )
-        self.modifier_lbl  .grid(row=index, column=5 , padx=(0, 0)                        )
-        self.modifier_spin .grid(row=index, column=6 , padx=(0, 0)                        )
-        self.finalmod_lbl  .grid(row=index, column=7 , padx=(0, 0)                        )
-        self.finalmod_spin .grid(row=index, column=8 , padx=(0, 0)                        )
-        self.roll_btn      .grid(row=index, column=9 , padx=(4, 0) , sticky='ns'          )
-        self.results_entry .grid(row=index, column=10, padx=(4, 4) , sticky='ns' , ipadx=4)
+        self.menu_btn      .grid(row=index, column=0 , padx=(4, 0))
+        self.name_entry    .grid(row=index, column=1 , padx=(4, 0))
+        self.dice_qty_spin .grid(row=index, column=2 , padx=(4, 0))
+        self.dice_lbl      .grid(row=index, column=3 , padx=(0, 0))
+        self.die_faces_spin.grid(row=index, column=4 , padx=(0, 0))
+        self.modifier_lbl  .grid(row=index, column=5 , padx=(6, 6))
+        self.modifier_spin .grid(row=index, column=6 , padx=(0, 0))
+        self.close_lbl     .grid(row=index, column=7 , padx=(0, 0))
+        self.roll_btn      .grid(row=index, column=8 , padx=(4, 0))
+        self.results_entry .grid(row=index, column=9 , padx=(4, 0))
+        self.finalmod_lbl  .grid(row=index, column=10, padx=(6, 6))
+        self.finalmod_spin .grid(row=index, column=11, padx=(0, 4))
 
         self.name     .set('Roller {}'.format(len(self.group.rollers) + 1))
         self.die_faces.set(10)
-        self.results  .set('N/A')
+        self.results  .set('0')
 
         self.grid(row=index, sticky='w', pady=4)
 
@@ -346,7 +349,7 @@ class Roller(Frame):
             roller.finalmod .set(self.finalmod .get())
 
         for h in self.history:
-            roller.history.append('N/A')
+            roller.history.append('0')
 
         self.group.mainframe.editmenu.entryconfigure(1, command=lambda: self.add_roller(clone=clone))
         self.group.mainframe.bind_all('<Control-r>', lambda e: self.add_roller(clone=clone))
@@ -373,6 +376,7 @@ class Roller(Frame):
         rolls = self.dice_qty .get()
         sides = self.die_faces.get()
         mod   = self.modifier .get()
+        fmod  = self.finalmod .get()
 
         max_roll = sides + mod
         min_roll = 1     + mod
@@ -406,8 +410,8 @@ class Roller(Frame):
                 str_result.append(str(n))
 
         s = ' + '.join(str_result)
-        if  ' + ' in s:
-            s = '{} = {}'.format(total + self.finalmod.get(), s)
+        if  ' + ' in s or fmod != 0:
+            s = '{} = {}'.format(total + fmod, s)
         self.results.set(s)
 
         self.history.append(s)
@@ -417,7 +421,7 @@ class Roller(Frame):
                     try:
                         h = roller.history[-1]
                     except IndexError:
-                        h = 'N/A'
+                        h = '0'
                     roller.history.append(h)
         self.group.hist_index = len(self.history) - 1
 
