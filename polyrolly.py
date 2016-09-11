@@ -1,5 +1,6 @@
 #! /usr/bin/python3
 
+
 from json    import dumps, load
 from os.path import isfile
 from random  import randint
@@ -33,10 +34,15 @@ class MainFrame(Frame):
     def __init__(self, master):
         Frame.__init__(self, master)
 
-        self.fpath = ''
+        self.master = master
+        self.fpath  = ''
 
         self.use_random_org = BooleanVar()
+        self.always_on_top  = BooleanVar()
+        self.allow_odd      = IntVar()
         self.use_random_org.set(False)
+        self.always_on_top .set(False)
+        self.allow_odd     .set(2)
 
         self.menubar = Menu(master)
 
@@ -47,11 +53,14 @@ class MainFrame(Frame):
         self.filemenu.add_command(label='Save as...', command=self.save_config                          , accelerator='Ctrl+Shift+S')
 
         self.editmenu = Menu(self.menubar, tearoff=0)
-        self.editmenu.add_checkbutton(label='Use random.org'    , variable=self.use_random_org)
-        self.editmenu.add_command    (label='Repeat last action', accelerator='Ctrl+R'        )
+        self.editmenu.add_checkbutton(label='Use random.org'    , variable=self.use_random_org                                                 )
+        self.editmenu.add_checkbutton(label='Always on top'     , variable=self.always_on_top  , command=self.pin                              )
+        self.editmenu.add_checkbutton(label='Allow odd dice'    , variable=self.allow_odd      , command=self.toggle_odd, onvalue=1, offvalue=2)
+        self.editmenu.add_command    (label='Repeat last action', accelerator='Ctrl+R'                                                         )
 
         self.menubar.add_cascade(label='File', menu=self.filemenu)
         self.menubar.add_cascade(label='Edit', menu=self.editmenu)
+
         self.menubar.config(relief='flat')
 
         master.config(menu=self.menubar)
@@ -62,6 +71,17 @@ class MainFrame(Frame):
         self.bind_all('<Control-d>'      , lambda e: self.load_config()                )
         self.bind_all('<Control-s>'      , lambda e: self.save_config(fpath=self.fpath))
         self.bind_all('<Control-Shift-S>', lambda e: self.save_config()                )
+
+    def pin(self):
+        self.master.wm_attributes('-topmost', self.always_on_top.get())
+
+    def toggle_odd(self):
+        for group in roller_groups:
+            for roller in group.rollers:
+                roller.die_faces_spin.config(increment=self.allow_odd.get())
+                num = roller.die_faces.get()
+                if num % 2 != 0:
+                    roller.die_faces.set(num - 1)
 
     def reset_default_group(self):
         self.clear_groups()
@@ -164,24 +184,29 @@ class RollerGroup(LabelFrame):
         self.hist_index    = 0
         self.rollers       = []
         self.control_frame = Frame(None)
+        default_font       = ('Verdana', 10)
 
         self.name = StringVar()
 
         self.name_entry    = Entry     (self.control_frame, bd=1, width=16, relief='solid', font=('Verdana', 12), textvariable=self.name)
-        self.menu_btn      = Menubutton(self.control_frame, bd=1, text='\u25E2', relief='solid', font=('Courier',  8)                         )
-        self.roll_btn      = Button    (self.control_frame, bd=1, text='\u21bb', relief='solid', font=('Verdana', 10), command=self.roll_group)
-        self.hist_prev_btn = Button    (self.control_frame, bd=1, text='\u25c0', relief='solid', repeatdelay=250, repeatinterval=100, command=lambda: self.navigate_history(offset=-1))
-        self.hist_next_btn = Button    (self.control_frame, bd=1, text='\u25b6', relief='solid', repeatdelay=250, repeatinterval=100, command=lambda: self.navigate_history(offset= 1))
+        self.history_frame = LabelFrame(self.control_frame, bd=1, text='History', relief='solid', font=default_font, labelanchor='w'                                                                              )
+        self.roll_frame    = LabelFrame(self.control_frame, bd=1, text='Roll'   , relief='solid', font=default_font, labelanchor='w'                                                                              )
+        self.menu_btn      = Menubutton(self.control_frame, bd=1, text='\u25e2' , relief='solid', font=('Courier'  , 8)                                                                                           )
+        self.roll_btn      = Button    (self.roll_frame   , bd=1, text='\u21bb' , relief='solid', font=default_font, command=self.roll_group                                                                      )
+        self.hist_prev_btn = Button    (self.history_frame, bd=1, text='\u25c0' , relief='solid', font=default_font, repeatdelay=250         , repeatinterval=100, command=lambda:self.navigate_history(offset=-1))
+        self.hist_next_btn = Button    (self.history_frame, bd=1, text='\u25b6' , relief='solid', font=default_font, repeatdelay=250         , repeatinterval=100, command=lambda:self.navigate_history(offset=1) )
 
         self.menu_btn.config(menu=self.create_menu())
 
-        self.menu_btn     .grid(row=index, column=0, padx=(4, 0)              )
-        self.name_entry   .grid(row=index, column=1, padx=(4, 0)              )
-        self.hist_prev_btn.grid(row=index, column=2, padx=(4, 0) , sticky='ns')
-        self.hist_next_btn.grid(row=index, column=3, padx=(0, 0) , sticky='ns')
-        self.roll_btn     .grid(row=index, column=4, padx=(4, 4) , sticky='ns')
+        self.menu_btn     .grid(row=0, column=0, padx=(4, 0)        )
+        self.name_entry   .grid(row=0, column=1, padx=(4, 0)        )
+        self.history_frame.grid(row=0, column=2, padx=(6, 0)        )
+        self.hist_prev_btn.grid(row=0, column=0, padx=(6, 2), pady=2)
+        self.hist_next_btn.grid(row=0, column=1, padx=(0, 2), pady=2)
+        self.roll_frame   .grid(row=0, column=3, padx=(6, 4)        )
+        self.roll_btn     .grid(row=0, column=0, padx=(6, 2), pady=2)
 
-        self.config(labelwidget=self.control_frame, text='Group {}'.format(self.index + 1))
+        self.config(relief='solid', labelwidget=self.control_frame)
         self.name.set('Group {}'.format(len(roller_groups) + 1))
         self.grid(row=index, padx=4, pady=4, sticky='w')
 
@@ -218,7 +243,8 @@ class RollerGroup(LabelFrame):
         else:
             group.rollers.append(Roller(group, 0))
 
-        self.mainframe.editmenu.entryconfigure(1, command=lambda: self.add_group(clone=clone))
+        self.mainframe.editmenu.entryconfigure(
+            self.mainframe.editmenu.index('end'), command=lambda: self.add_group(clone=clone))
         self.mainframe.bind_all('<Control-r>', lambda e: self.add_group(clone=clone))
 
     def move_group(self, offset=0, destination_index=0):
@@ -231,7 +257,8 @@ class RollerGroup(LabelFrame):
 
         maintain_group_indices()
 
-        self.mainframe.editmenu.entryconfigure(1, command=lambda: self.move_group(offset=offset))
+        self.mainframe.editmenu.entryconfigure(
+            self.mainframe.editmenu.index('end'), command=lambda: self.move_group(offset=offset))
         self.mainframe.bind_all('<Control-r>', lambda e: self.move_group(offset=offset))
 
     def remove_group(self, override=False):
@@ -248,7 +275,8 @@ class RollerGroup(LabelFrame):
         for roller in self.rollers:
             roller.roll()
 
-        self.mainframe.editmenu.entryconfigure(1, command=lambda: self.roll_group())
+        self.mainframe.editmenu.entryconfigure(
+            self.mainframe.editmenu.index('end'), command=lambda: self.roll_group())
         self.mainframe.bind_all('<Control-r>', lambda e: self.roll_group())
 
     def navigate_history(self, offset=0, desired_index=0):
@@ -275,30 +303,34 @@ class Roller(Frame):
     def __init__(self, group, index):
         Frame.__init__(self, group)
 
-        self.group   = group
-        self.index   = index
-        self.history = []
+        self.group       = group
+        self.index       = index
+        self.total       = 0
+        self.str_results = ['0']
+        self.history     = []
 
         self.name      = StringVar()
         self.dice_qty  = IntVar()
         self.die_faces = IntVar()
         self.modifier  = IntVar()
+        self.minimum   = IntVar()
         self.finalmod  = IntVar()
         self.results   = StringVar()
 
         default_font        = ('Courier', 14)
-        self.menu_btn       = Menubutton(self, bd=1, text='\u25E2', relief='solid', font=('Courier',  8)                                        )
+        self.menu_btn       = Menubutton(self, bd=1, text='\u25e2', relief='solid', font=('Courier',  8)                                        )
         self.roll_btn       = Button    (self, bd=1, text='\u21bb', relief='solid', font=('Verdana', 10), command=lambda: self.roll(single=True))
         self.name_entry     = Entry     (self, bd=1, width=16, relief='solid', textvariable=self.name   , font=('Verdana' , 12)                                )
         self.results_entry  = Entry     (self, bd=0, width=0 , relief='solid', textvariable=self.results, state='readonly', font=default_font, justify='center')
-        self.dice_qty_spin  = Spinbox   (self, bd=0, to=99 , from_=1  , width=2, relief='solid', state='readonly', textvariable=self.dice_qty , font=default_font             )
-        self.die_faces_spin = Spinbox   (self, bd=0, to=100, from_=2  , width=3, relief='solid', state='readonly', textvariable=self.die_faces, font=default_font, increment=2)
-        self.modifier_spin  = Spinbox   (self, bd=0, to=100, from_=-99, width=3, relief='solid', state='readonly', textvariable=self.modifier , font=default_font             )
-        self.finalmod_spin  = Spinbox   (self, bd=0, to=100, from_=-99, width=3, relief='solid', state='readonly', textvariable=self.finalmod , font=default_font             )
+        self.dice_qty_spin  = Spinbox   (self, bd=0, to=99 , from_=1  , width=2, relief='solid', state='readonly', textvariable=self.dice_qty , font=default_font                                                )
+        self.die_faces_spin = Spinbox   (self, bd=0, to=100, from_=2  , width=3, relief='solid', state='readonly', textvariable=self.die_faces, font=default_font, increment=self.group.mainframe.allow_odd.get())
+        self.modifier_spin  = Spinbox   (self, bd=0, to=100, from_=-99, width=3, relief='solid', state='readonly', textvariable=self.modifier , font=default_font                                                )
+        self.minimum_spin   = Spinbox   (self, bd=0, to=100, from_=-99, width=3, relief='solid', state='readonly', textvariable=self.minimum  , font=default_font                                                )
+        self.finalmod_spin  = Spinbox   (self, bd=0, to=100, from_=-99, width=3, relief='solid', state='readonly', textvariable=self.finalmod , font=default_font, command=self.apply_finalmod                   )
         self.dice_lbl       = Label     (self, text=' \u00d7 (d', font=default_font)
         self.modifier_lbl   = Label     (self, text='\u002b'    , font=default_font)
         self.finalmod_lbl   = Label     (self, text='\u002b'    , font=default_font)
-        self.close_lbl      = Label     (self, text=')'         , font=default_font)
+        self.close_lbl      = Label     (self, text=') >'       , font=default_font)
 
         self.menu_btn.config(menu=self.create_menu())
 
@@ -310,14 +342,15 @@ class Roller(Frame):
         self.modifier_lbl  .grid(row=index, column=5 , padx=(6, 6))
         self.modifier_spin .grid(row=index, column=6 , padx=(0, 0))
         self.close_lbl     .grid(row=index, column=7 , padx=(0, 0))
-        self.roll_btn      .grid(row=index, column=8 , padx=(4, 0))
-        self.results_entry .grid(row=index, column=9 , padx=(4, 0))
-        self.finalmod_lbl  .grid(row=index, column=10, padx=(6, 6))
-        self.finalmod_spin .grid(row=index, column=11, padx=(0, 4))
+        self.minimum_spin  .grid(row=index, column=8 , padx=(6, 0))
+        self.roll_btn      .grid(row=index, column=9 , padx=(4, 0))
+        self.results_entry .grid(row=index, column=10, padx=(4, 0))
+        self.finalmod_lbl  .grid(row=index, column=11, padx=(6, 6))
+        self.finalmod_spin .grid(row=index, column=12, padx=(0, 4))
 
         self.name     .set('Roller {}'.format(len(self.group.rollers) + 1))
         self.die_faces.set(10)
-        self.results  .set('0')
+        self.results  .set('0 = 0')
 
         self.grid(row=index, sticky='w', pady=4)
 
@@ -351,7 +384,8 @@ class Roller(Frame):
         for h in self.history:
             roller.history.append('0')
 
-        self.group.mainframe.editmenu.entryconfigure(1, command=lambda: self.add_roller(clone=clone))
+        self.group.mainframe.editmenu.entryconfigure(
+            self.group.mainframe.editmenu.index('end'), command=lambda: self.add_roller(clone=clone))
         self.group.mainframe.bind_all('<Control-r>', lambda e: self.add_roller(clone=clone))
 
     def move_roller(self, offset=0, destination_index=0):
@@ -364,7 +398,8 @@ class Roller(Frame):
 
         self.group.maintain_roller_indices()
 
-        self.group.mainframe.editmenu.entryconfigure(1, command=lambda: self.move_roller(offset=offset))
+        self.group.mainframe.editmenu.entryconfigure(
+            self.group.mainframe.editmenu.index('end'), command=lambda: self.move_roller(offset=offset))
         self.group.mainframe.bind_all('<Control-r>', lambda e: self.move_roller(offset=offset))
 
     def remove_roller(self):
@@ -377,44 +412,48 @@ class Roller(Frame):
         sides = self.die_faces.get()
         mod   = self.modifier .get()
         fmod  = self.finalmod .get()
+        mini  = self.minimum  .get()
+        if mini >= sides:
+            mini = sides - 1
+            self.minimum.set(sides - 1)
 
         max_roll = sides + mod
         min_roll = 1     + mod
+        min_roll = min_roll if min_roll > mini else mini + 1
 
-        result = []
-        total  = 0
+        result     = []
+        self.total = 0
 
         if self.group.mainframe.use_random_org.get():
             url = 'https://www.random.org/integers/?col={0}&num={0}&min={1}&max={2}&base=10&format=plain&rnd=new'
             url = url.format(rolls, min_roll, max_roll)
             try:
                 resp = urlopen(url)
-                result.extend([int(x) for x in resp.read().rstrip().split('\t')])
+                result.extend([int(x) for x in str(resp.read().rstrip(), encoding='utf8').split('\t')])
+                for n in result:
+                    self.total += n
                 sleep(0.1)
             except:
-                pass
+                print('Failed to use random.org, falling back to CSPRNG!')
 
         if not result:
             for i in range(rolls):
-                roll   = randint(1, sides) + mod
-                total += roll
+                roll   = randint(min_roll, sides)
+                self.total += roll
                 result.append(roll)
 
-        str_result = []
+        self.str_results = []
         for n in result:
             if n == max_roll:
-                str_result.append('\u25b2{}'.format(n))
+                self.str_results.append('\u25b2{}'.format(n))
             elif n == min_roll:
-                str_result.append('\u25bc{}'.format(n))
+                self.str_results.append('\u25bc{}'.format(n))
             else:
-                str_result.append(str(n))
+                self.str_results.append(str(n))
 
-        s = ' + '.join(str_result)
-        if  ' + ' in s or fmod != 0:
-            s = '{} = {}'.format(total + fmod, s)
-        self.results.set(s)
+        self.apply_finalmod()
 
-        self.history.append(s)
+        self.history.append(self.results.get())
         if single:
             for roller in self.group.rollers:
                 if roller is not self:
@@ -425,10 +464,19 @@ class Roller(Frame):
                     roller.history.append(h)
         self.group.hist_index = len(self.history) - 1
 
-        self.group.maintain_result_widths()
-
-        self.group.mainframe.editmenu.entryconfigure(1, command=lambda: self.roll(single=single))
+        self.group.mainframe.editmenu.entryconfigure(
+            self.group.mainframe.editmenu.index('end'), command=lambda: self.roll(single=single))
         self.group.mainframe.bind_all('<Control-r>', lambda e: self.roll(single=single))
+
+    def apply_finalmod(self):
+        s    = self.results .get()
+        fmod = self.finalmod.get()
+
+        s = ' + '.join(self.str_results)
+        # if  ' + ' in s or fmod != 0:
+        s = '{} = {}'.format(self.total + fmod, s)
+        self.results.set(s)
+        self.group.maintain_result_widths()
 
 
 if __name__ == '__main__':
