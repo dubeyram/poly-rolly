@@ -1,27 +1,29 @@
 #! /usr/bin/python3
 
 from json    import dumps, load
-from os.path import isfile
+from os.path import isfile, split
 from random  import randint
 from time    import sleep
-from tkinter import \
-        BooleanVar, \
-        Button    , \
-        Entry     , \
-        Frame     , \
-        IntVar    , \
-        Label     , \
-        LabelFrame, \
-        Menu      , \
-        Menubutton, \
-        PhotoImage, \
-        Spinbox   , \
-        StringVar , \
-        Tk
+from tkinter import (
+        BooleanVar,
+        Button    ,
+        Entry     ,
+        Frame     ,
+        IntVar    ,
+        Label     ,
+        LabelFrame,
+        Menu      ,
+        Menubutton,
+        PhotoImage,
+        Spinbox   ,
+        StringVar ,
+        Tk          )
+from tkinter.messagebox import askyesno
 from tkinter.filedialog import askopenfilename, asksaveasfilename
 from urllib .request    import urlopen
 
 
+_title = 'Poly Rolly v1.5  -  mznlab.net'
 roller_groups = []
 
 def maintain_group_indices():
@@ -31,18 +33,39 @@ def maintain_group_indices():
 
 
 class MainFrame(Frame):
+    def set_saved_title(self, fpath):
+        fname = split(fpath)[-1].replace('.json', '')
+        self.master.title('{}  -  {}'.format(fname, _title))
+
+    def set_unsaved_title(self, *args):
+        if len(roller_groups) < 1:
+            return
+        if self.autosave.get():
+            self.save_config(self.fpath)
+            return
+        title = self.master.title()
+        if title == _title:
+            title = '{}  -  {}'.format('Unsaved', title)
+        if '*' not in title:
+            title = '*' + title
+
+        self.master.title(title)
+
     def __init__(self, master):
         Frame.__init__(self, master)
 
         self.master = master
-        self.fpath  = ''
 
         self.use_random_org = BooleanVar()
-        self.always_on_top  = BooleanVar()
         self.allow_odd      = IntVar()
-        self.use_random_org.set(False)
-        self.always_on_top .set(False)
-        self.allow_odd     .set(2)
+        self.always_on_top  = BooleanVar()
+        self.autosave       = BooleanVar()
+
+        self.use_random_org.trace('w', self.set_unsaved_title)
+        self.allow_odd     .trace('w', self.set_unsaved_title)
+        self.always_on_top .trace('w', self.set_unsaved_title)
+
+        self.set_defaults()
 
         self.menubar = Menu(master)
 
@@ -54,10 +77,12 @@ class MainFrame(Frame):
 
         self.editmenu = Menu(self.menubar, tearoff=0)
         self.editmenu.add_checkbutton(label='Use random.org'    , underline=0 , variable=self.use_random_org                                                 )
-        self.editmenu.add_checkbutton(label='Always on top'     , underline=10, variable=self.always_on_top  , command=self.pin                              )
         self.editmenu.add_checkbutton(label='Allow odd dice'    , underline=6 , variable=self.allow_odd      , command=self.toggle_odd, onvalue=1, offvalue=2)
         self.editmenu.add_separator() #      ------------------
-        self.editmenu.add_command    (label='Repeat last action', underline=0, accelerator='Ctrl+R'                                                         )
+        self.editmenu.add_checkbutton(label='Always on top'     , underline=10, variable=self.always_on_top  , command=self.pin                              )
+        self.editmenu.add_checkbutton(label='Autosave'          , underline=4 , variable=self.autosave       , command=self.toggle_autosave                  )
+        self.editmenu.add_separator() #      ------------------
+        self.editmenu.add_command    (label='Repeat last action', underline=0, accelerator='Ctrl+R'                                                          )
 
         self.menubar.add_cascade(label='File', underline=0, menu=self.filemenu)
         self.menubar.add_cascade(label='Edit', underline=0, menu=self.editmenu)
@@ -73,6 +98,12 @@ class MainFrame(Frame):
         self.bind_all('<Control-s>'      , lambda e: self.save_config(fpath=self.fpath))
         self.bind_all('<Control-Shift-S>', lambda e: self.save_config()                )
 
+    def ask_proceed(self):
+        if '*' in self.master.title():
+            if not askyesno('Unsaved changes!', 'There are unsaved changes!\r\nWould you like to proceed anyway?'):
+                return False
+        return True
+
     def pin(self):
         self.master.wm_attributes('-topmost', self.always_on_top.get())
 
@@ -84,9 +115,26 @@ class MainFrame(Frame):
                 if num % 2 != 0:
                     roller.die_faces.set(num - 1)
 
+    def toggle_autosave(self):
+        if self.autosave.get():
+            self.save_config(self.fpath)
+        else:
+            self.set_unsaved_title()
+
+    def set_defaults(self):
+        self.master.title(_title)
+        self.fpath  = ''
+        self.use_random_org.set(False)
+        self.allow_odd     .set(2)
+        self.always_on_top .set(False)
+        self.autosave      .set(False)
+
     def reset_default_group(self):
-        self.clear_groups()
-        self.create_group(0, 1)
+        if self.ask_proceed():
+            self.autosave.set(False)
+            self.clear_groups()
+            self.set_defaults()
+            self.create_group(0, 1)
 
     @staticmethod
     def clear_groups():
@@ -101,14 +149,29 @@ class MainFrame(Frame):
         roller_groups.append(default_group)
 
     def load_config(self):
+        autosave = False
+        self.autosave.set(autosave)
+        if not self.ask_proceed():
+            return
+
         fpath = askopenfilename(filetypes=[('JSON', '*.json'), ('All', '*.*')], defaultextension='.json')
         if not fpath or not isfile(fpath):
             return
+        self.fpath = fpath
 
         self.clear_groups()
 
         with open(fpath, 'r') as f:
             group_dict = load(f)
+
+        try:
+            settings_dict = group_dict.pop('settings')
+            autosave      = (settings_dict['autosave'])
+            self.use_random_org.set(settings_dict['use_random_org'])
+            self.allow_odd     .set(settings_dict['allow_odd'     ])
+            self.always_on_top .set(settings_dict['always_on_top' ])
+        except KeyError:
+            pass
 
         g = 0
         for group_name, group_settings in group_dict.items():
@@ -141,15 +204,23 @@ class MainFrame(Frame):
             group.rollers.sort(key=lambda x: x.index)
             group.maintain_roller_indices()
 
-        self.fpath = fpath
+        self.autosave.set(autosave)
+        self.set_saved_title(fpath)
 
     def save_config(self, fpath=''):
         if not fpath:
             fpath = asksaveasfilename(filetypes=[('JSON', '*.json'), ('All', '*.*')], defaultextension='.json')
         if not fpath:
+            if '*' in self.master.title():
+                self.autosave.set(False)
             return
+        self.fpath = fpath
 
         d1 = {}
+        d1['settings'] = {'use_random_org': self.use_random_org.get(),
+                          'allow_odd'     : self.allow_odd     .get(),
+                          'always_on_top' : self.always_on_top .get(),
+                          'autosave'      : self.autosave      .get()}
         for group in roller_groups:
             group.maintain_roller_indices()
             d2 = {}
@@ -173,7 +244,7 @@ class MainFrame(Frame):
         with open(fpath, 'w') as f:
             f.write(dumps(d1, indent=2, separators=(',', ': ')))
 
-        self.fpath = fpath
+        self.set_saved_title(fpath)
 
 
 class RollerGroup(LabelFrame):
@@ -188,6 +259,7 @@ class RollerGroup(LabelFrame):
         default_font       = ('Verdana', 10)
 
         self.name = StringVar()
+        self.name.trace('w', self.mainframe.set_unsaved_title)
 
         self.menu_btn      = Menubutton(self.control_frame, bd=1, relief='solid', font=('Courier', 8), text='\u25e2', takefocus=1, highlightthickness=1)
         self.name_entry    = Entry     (self.control_frame, bd=1, relief='solid', font=('Verdana', 12), width=16, textvariable=self.name)
@@ -235,7 +307,6 @@ class RollerGroup(LabelFrame):
             roller_groups[i].grid(row=i + 1)
 
         if clone:
-            group.name.set(self.name.get())
             for roller in self.rollers:
                 new_roller = Roller(group, self.rollers.index(roller))
                 new_roller.name     .set(roller.name     .get())
@@ -244,8 +315,10 @@ class RollerGroup(LabelFrame):
                 new_roller.modifier .set(roller.modifier .get())
                 new_roller.finalmod .set(roller.finalmod .get())
                 group.rollers.append(new_roller)
+            group.name.set(self.name.get())
         else:
             group.rollers.append(Roller(group, 0))
+            group.name.set(group.name.get())
 
         for g in roller_groups:
             for r in g.rollers:
@@ -266,6 +339,7 @@ class RollerGroup(LabelFrame):
             roller_groups.insert(destination_index, group)
 
         maintain_group_indices()
+        self.name.set(self.name.get())
 
         self.mainframe.editmenu.entryconfigure(
             self.mainframe.editmenu.index('end'), command=lambda: self.move_group(offset=offset))
@@ -279,6 +353,7 @@ class RollerGroup(LabelFrame):
         if len(roller_groups) > 1 or override:
             self.grid_remove()
             roller_groups.remove(self)
+            self.name.set('')
 
     def maintain_roller_indices(self):
         for roller in self.rollers:
@@ -332,6 +407,14 @@ class Roller(Frame):
         self.minimum   = IntVar()
         self.finalmod  = IntVar()
         self.results   = StringVar()
+
+        self.name     .trace('w', self.group.mainframe.set_unsaved_title)
+        self.dice_qty .trace('w', self.group.mainframe.set_unsaved_title)
+        self.die_faces.trace('w', self.group.mainframe.set_unsaved_title)
+        self.modifier .trace('w', self.group.mainframe.set_unsaved_title)
+        self.minimum  .trace('w', self.group.mainframe.set_unsaved_title)
+        self.finalmod .trace('w', self.group.mainframe.set_unsaved_title)
+        self.results  .trace('w', self.group.mainframe.set_unsaved_title)
 
         default_font = ('Courier', 14)
 
@@ -422,6 +505,7 @@ class Roller(Frame):
             self.group.rollers.insert(destination_index, roller)
 
         self.group.maintain_roller_indices()
+        self.name.set(self.name.get())
 
         self.group.mainframe.editmenu.entryconfigure(
             self.group.mainframe.editmenu.index('end'), command=lambda: self.move_roller(offset=offset))
@@ -431,6 +515,7 @@ class Roller(Frame):
         if len(self.group.rollers) > 1:
             self.grid_remove()
             self.group.rollers.remove(self)
+            self.name.set('')
 
     def roll(self, single=False):
         rolls = self.dice_qty .get()
@@ -463,7 +548,7 @@ class Roller(Frame):
 
         if not result:
             for i in range(rolls):
-                roll   = randint(min_roll, sides)
+                roll = randint(min_roll, sides)
                 self.total += roll
                 result.append(roll)
 
@@ -491,6 +576,7 @@ class Roller(Frame):
             self.group.navigate_history(desired_index=hist_index)
 
         self.group.hist_index = hist_index
+        self.name.set(self.name.get())
 
         self.group.mainframe.editmenu.entryconfigure(
             self.group.mainframe.editmenu.index('end'), command=lambda: self.roll(single=single))
@@ -509,11 +595,20 @@ class Roller(Frame):
 
 if __name__ == '__main__':
     root = Tk()
+    root.resizable(0,0)
     icon = PhotoImage(data=b'R0lGODlhIAAgAKECAAAAAD9IzP///////yH5BAEKAAMALAAAAAAgACAAAAJ5nI85AOoPGZyxLUvzNVL7roDeISJl9XQqhjorx07iecosHVNzPpI339v4gq4f0QSsaZTKDBPoTEJbtl5zOGIEttzu9hoCeMcBsI8cEAjGZi1ZzZ7C0Oi2mB63deF47nO/1vclJbjFN5hyJ3hYJsXwCBkp+TRZOYlQAAA7')
-    root.wm_iconphoto(root, icon)
-    root.title('Poly Rolly v1.4  -  mznlab.net')
+    root.iconphoto(root, icon)
+
+    def on_closing():
+        title = root.title()
+        if '*' in title:
+            if askyesno('Unsaved changes!', 'There are unsaved changes!\r\nWould you like to quit anyway?'):
+                root.destroy()
+        else:
+            if askyesno('Quit?', 'Really quit?'):
+                root.destroy()
+    root.protocol("WM_DELETE_WINDOW", on_closing)
 
     main = MainFrame(root)
     main.grid()
-
     root.mainloop()
