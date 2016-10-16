@@ -375,8 +375,15 @@ class RollerGroup(LabelFrame):
         hist_len = len(self.rollers[0].history)
         if desired_index >= 0 and desired_index < hist_len:
             for roller in self.rollers:
-                roller.results.set(roller.history[desired_index][0])
-                roller.finalmod.set(roller.history[desired_index][1])
+                hist_dict          = roller.history[desired_index]
+                roller.str_results = hist_dict['str_results']
+                roller.total       = hist_dict['total'      ]
+                roller.dice_qty .set(hist_dict['dice_qty'   ])
+                roller.die_faces.set(hist_dict['die_faces'  ])
+                roller.modifier .set(hist_dict['modifier'   ])
+                roller.minimum  .set(hist_dict['minimum'    ])
+                roller.results  .set(hist_dict['results'    ])
+                roller.finalmod .set(hist_dict['finalmod'   ])
             self.hist_index = desired_index
 
         self.maintain_result_widths()
@@ -398,7 +405,6 @@ class Roller(Frame):
         self.total       = 0
         self.str_results = ['0']
         self.history     = []
-        self.empty_hist  = ('0 = 0', 0)
 
         self.name      = StringVar()
         self.dice_qty  = IntVar()
@@ -468,6 +474,18 @@ class Roller(Frame):
 
         return menu
 
+    def create_hist_record(self):
+        record = {
+            'dice_qty'   : self.dice_qty .get(),
+            'die_faces'  : self.die_faces.get(),
+            'modifier'   : self.modifier .get(),
+            'minimum'    : self.minimum  .get(),
+            'results'    : self.results  .get(),
+            'finalmod'   : self.finalmod .get(),
+            'str_results': self.str_results    ,
+            'total'      : self.total          }
+        return record
+
     def add_roller(self, clone=False):
         destination_index = self.index + 1
 
@@ -485,7 +503,7 @@ class Roller(Frame):
             roller.finalmod .set(self.finalmod .get())
 
         for h in self.history:
-            roller.history.append(self.empty_hist)
+            roller.history.append(roller.create_hist_record())
 
         roller.apply_finalmod()
 
@@ -563,16 +581,12 @@ class Roller(Frame):
 
         self.apply_finalmod()
 
-        self.history.append((self.results.get(), fmod))
+        self.history.append(self.create_hist_record())
         hist_index = len(self.history) - 1
         if single:
             for roller in self.group.rollers:
                 if roller is not self:
-                    try:
-                        h = roller.history[-1]
-                    except IndexError:
-                        h = self.empty_hist
-                    roller.history.append(h)
+                    roller.history.append(roller.create_hist_record())
             self.group.navigate_history(desired_index=hist_index)
 
         self.group.hist_index = hist_index
@@ -583,7 +597,6 @@ class Roller(Frame):
         self.group.mainframe.bind_all('<Control-r>', lambda e: self.roll(single=single))
 
     def apply_finalmod(self):
-        s    = self.results .get()
         fmod = self.finalmod.get()
 
         s = ' + '.join(self.str_results)
