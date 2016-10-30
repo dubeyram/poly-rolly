@@ -540,8 +540,8 @@ class Roller(Frame):
             self.name.set('')
 
     def reset(self):
-        self.results = [0]
-        self.results_text.set('0 = 0')
+        self.results = [0 for i in range(self.dice_qty.get())]
+        self.apply_modifiers()
         self.group.maintain_result_widths()
 
     def roll(self, single=False):
