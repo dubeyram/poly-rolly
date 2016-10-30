@@ -619,7 +619,7 @@ class Roller(Frame):
         s = ' + '.join(formatted_results)
         s = '{} = {}'.format(total + fmod, s)
 
-        if not rolling:
+        if not rolling and self.history:
             self.history[self.group.hist_index]['modifier'    ] = dmod
             self.history[self.group.hist_index]['finalmod'    ] = fmod
             self.history[self.group.hist_index]['results_text'] = s
