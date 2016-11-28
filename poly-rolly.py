@@ -1,29 +1,30 @@
 #! /usr/bin/python3
 
-from json    import dumps, load
-from os.path import isfile, split
-from random  import SystemRandom
-from time    import sleep
-from tkinter import (
-        BooleanVar,
-        Button    ,
-        Entry     ,
-        Frame     ,
-        IntVar    ,
-        Label     ,
-        LabelFrame,
-        Menu      ,
-        Menubutton,
-        PhotoImage,
-        Spinbox   ,
-        StringVar ,
-        Tk          )
+from datetime import datetime as dt
+from json     import dumps , load
+from os.path  import isfile, split
+from random   import SystemRandom
+from time     import sleep
+from tkinter  import (
+           BooleanVar,
+           Button    ,
+           Entry     ,
+           Frame     ,
+           IntVar    ,
+           Label     ,
+           LabelFrame,
+           Menu      ,
+           Menubutton,
+           PhotoImage,
+           Spinbox   ,
+           StringVar ,
+           Tk        )
 from tkinter.messagebox import askyesno
 from tkinter.filedialog import askopenfilename, asksaveasfilename
 from urllib .request    import urlopen
 
 
-_title        = 'Poly Rolly v2.0  -  mznlab.net'
+_title        = 'Poly Rolly v2.1  -  mznlab.net'
 roller_groups = []
 CRIT          = 1000
 FAIL          = .001
@@ -78,10 +79,10 @@ class MainFrame(Frame):
         self.menubar = Menu(master)
 
         self.filemenu = Menu(self.menubar, tearoff=0, postcommand=maintain_group_indices)
-        self.filemenu.add_command(label='New'       , underline=0, command=       self.reset_default_group          , accelerator='Ctrl+N'      )
-        self.filemenu.add_command(label='Load'      , underline=3, command=       self.load_config                  , accelerator='Ctrl+D'      )
-        self.filemenu.add_command(label='Save'      , underline=1, command=lambda:self.save_config(fpath=self.fpath), accelerator='Ctrl+S'      )
-        self.filemenu.add_command(label='Save as...', underline=4, command=       self.save_config                  , accelerator='Ctrl+Shift+S')
+        self.filemenu.add_command(label='New'       , underline=0, command=        self.reset_default_group          , accelerator='Ctrl+N'      )
+        self.filemenu.add_command(label='Load'      , underline=3, command=        self.load_config                  , accelerator='Ctrl+D'      )
+        self.filemenu.add_command(label='Save'      , underline=1, command=lambda: self.save_config(fpath=self.fpath), accelerator='Ctrl+S'      )
+        self.filemenu.add_command(label='Save as...', underline=4, command=        self.save_config                  , accelerator='Ctrl+Shift+S')
 
         self.editmenu = Menu(self.menubar, tearoff=0)
         self.editmenu.add_checkbutton(label='Use random.org'    , underline=0 , variable=self.use_random_org                                                 )
@@ -90,7 +91,7 @@ class MainFrame(Frame):
         self.editmenu.add_checkbutton(label='Always on top'     , underline=10, variable=self.always_on_top  , command=self.pin                              )
         self.editmenu.add_checkbutton(label='Autosave'          , underline=4 , variable=self.autosave       , command=self.toggle_autosave                  )
         self.editmenu.add_separator() #      ------------------
-        self.editmenu.add_command    (label='Repeat last action', underline=0, accelerator='Ctrl+R'                                                          )
+        self.editmenu.add_command    (label='Repeat last action', underline=0 , accelerator='Ctrl+R'                                                         )
 
         self.menubar.add_cascade(label='File', underline=0, menu=self.filemenu)
         self.menubar.add_cascade(label='Edit', underline=0, menu=self.editmenu)
@@ -118,7 +119,7 @@ class MainFrame(Frame):
     def toggle_odd(self):
         for group in roller_groups:
             for roller in group.rollers:
-                roller.die_faces_spin.config(increment=self.allow_odd.get())
+                roller.die_faces_spin.interval = self.allow_odd.get()
                 num = roller.die_faces.get()
                 if num % 2 != 0:
                     roller.die_faces.set(num - 1)
@@ -199,6 +200,11 @@ class MainFrame(Frame):
                         getattr(roller, attr).set(value)
                     except AttributeError:
                         setattr(roller, attr, value)
+                roller.dice_qty_spin .step(0)
+                roller.die_faces_spin.step(0)
+                roller.modifier_spin .step(0)
+                roller.finalmod_spin .step(0)
+                roller.reset(loading=True)
                 h = len(roller.history) - 1
                 r += 1
 
@@ -211,6 +217,8 @@ class MainFrame(Frame):
         for group in roller_groups:
             group.rollers.sort(key=lambda x: x.index)
             group.maintain_roller_indices()
+            for roller in group.rollers:
+                roller.apply_modifiers()
 
         maintain_tabstops()
 
@@ -239,7 +247,7 @@ class MainFrame(Frame):
             d2['rollers'] = {}
             for roller in group.rollers:
                 name = roller.name.get()
-                if name in d2['rollers']:
+                while name in d2['rollers']:
                     name += '!'
                 d2['rollers'][name] = {'index'    : roller.index          ,
                                        'history'  : roller.history        ,
@@ -265,6 +273,7 @@ class RollerGroup(LabelFrame):
         self.mainframe     = mainframe
         self.index         = index
         self.hist_index    = 0
+        self.collapsed     = False
         self.rollers       = []
         self.control_frame = Frame(None)
         default_font       = ('Verdana', 10)
@@ -272,39 +281,63 @@ class RollerGroup(LabelFrame):
         self.name = StringVar()
         self.name.trace('w', self.mainframe.set_unsaved_title)
 
-        self.menu_btn      = Menubutton(self.control_frame, bd=1, relief='solid', font=('Courier', 8), text='\u25e2', takefocus=1, highlightthickness=1)
-        self.name_entry    = Entry     (self.control_frame, bd=1, relief='solid', font=('Verdana', 12), width=16, textvariable=self.name)
+        self.expand_img   = PhotoImage(data=b'R0lGODlhEAAQAIABAAAAAP///yH5BAEKAAEALAAAAAAQABAAAAIlhI+pq+EPHYo0TGjifRkfDYAdI33WUnZc6KmlyK5wNdMrg+dJAQA7')
+        self.collapse_img = PhotoImage(data=b'R0lGODlhEAAQAIABAAAAAP///yH5BAEKAAEALAAAAAAQABAAAAIfhI+pq+EPHYo0zAovlme/y3CGmJCeeWqbirEVA8dLAQA7'        )
 
-        self.history_frame = LabelFrame(self.control_frame, bd=1, text='History', relief='solid', font=default_font  , labelanchor='w'                                                                              )
-        self.roll_frame    = LabelFrame(self.control_frame, bd=1, text='Roll'   , relief='solid', font=default_font  , labelanchor='w'                                                                              )
-        self.roll_btn      = Button    (self.roll_frame   , bd=1, text='\u21bb' , relief='solid', font=default_font  , command=self.roll_group                                                                      )
-        self.hist_prev_btn = Button    (self.history_frame, bd=1, text='\u25c0' , relief='solid', font=default_font  , repeatdelay=250         , repeatinterval=100, command=lambda:self.navigate_history(offset=-1))
-        self.hist_next_btn = Button    (self.history_frame, bd=1, text='\u25b6' , relief='solid', font=default_font  , repeatdelay=250         , repeatinterval=100, command=lambda:self.navigate_history(offset=1) )
+        self.collapse_btn  = Button    (self.control_frame, bd=0, image=self.collapse_img, command=self.show_hide                                       )
+        self.menu_btn      = Menubutton(self.control_frame, bd=1, relief='solid', font=('Courier',  8), text='\u25e2', takefocus=1, highlightthickness=1)
+        self.name_entry    = Entry     (self.control_frame, bd=1, relief='solid', font=('Verdana', 12), width=16     , textvariable=self.name           )
+
+        self.history_frame = LabelFrame(self.control_frame, bd=1, text='History', relief='solid', font=default_font, labelanchor='w')
+        self.roll_frame    = LabelFrame(self.control_frame, bd=1, text='Roll'   , relief='solid', font=default_font, labelanchor='w')
+
+        self.roll_img    = PhotoImage(data=b'R0lGODlhDgARAIABAAAAAP///yH5BAEKAAEALAAAAAAOABEAAAIkjB+Ai6C83GOy0iqjM7ltPoFhKEKeKZJadynfVa6HlbAp3ZIFADs=')
+        self.left_arrow  = PhotoImage(data=b'R0lGODlhBwANAIABAAAAAP///yH5BAEKAAEALAAAAAAHAA0AAAITjA9nkMj+Apty2lvt0jt2VYFSAQA7')
+        self.right_arrow = PhotoImage(data=b'R0lGODlhBwANAIABAAAAAP///yH5BAEKAAEALAAAAAAHAA0AAAITRI5gGLrnXlzT1NsidEkx/zFHAQA7')
+
+        self.roll_btn      = Button(self.roll_frame   , bd=0, image=self.roll_img   , height=24, command=self.roll_group                                                                        )
+        self.hist_prev_btn = Button(self.history_frame, bd=0, image=self.left_arrow , height=24, width=16, repeatdelay=250, repeatinterval=100, command=lambda: self.navigate_history(offset=-1))
+        self.hist_next_btn = Button(self.history_frame, bd=0, image=self.right_arrow, height=24, width=16, repeatdelay=250, repeatinterval=100, command=lambda: self.navigate_history(offset= 1))
 
         self.menu_btn.config(menu=self.create_menu())
 
-        self.menu_btn     .grid(row=0, column=0, padx=(4, 0)        )
-        self.name_entry   .grid(row=0, column=1, padx=(4, 0)        )
-        self.history_frame.grid(row=0, column=2, padx=(6, 0)        )
-        self.hist_prev_btn.grid(row=0, column=0, padx=(6, 2), pady=2)
-        self.hist_next_btn.grid(row=0, column=1, padx=(0, 2), pady=2)
-        self.roll_frame   .grid(row=0, column=3, padx=(6, 4)        )
-        self.roll_btn     .grid(row=0, column=0, padx=(6, 2), pady=2)
+        self.collapse_btn .grid(row=0, column=0, padx=(4, 0))
+        self.menu_btn     .grid(row=0, column=1, padx=(4, 0))
+        self.name_entry   .grid(row=0, column=2, padx=(4, 0))
+        self.history_frame.grid(row=0, column=3, padx=(6, 0))
+        self.hist_prev_btn.grid(row=0, column=0, padx=(6, 0))
+        self.hist_next_btn.grid(row=0, column=1, padx=(0, 2))
+        self.roll_frame   .grid(row=0, column=4, padx=(6, 4))
+        self.roll_btn     .grid(row=0, column=0, padx=(6, 2))
 
         self.config(relief='solid', labelwidget=self.control_frame)
         self.name.set('Group {}'.format(len(roller_groups) + 1))
         self.grid(row=index, padx=4, pady=4, sticky='w')
 
+    def show_hide(self):
+        if self.collapsed:
+            for roller in self.rollers:
+                roller.grid()
+            self.collapse_btn.config(image=self.collapse_img)
+            self.collapsed = False
+        else:
+            for roller in self.rollers:
+                roller.grid_remove()
+            self.collapse_btn.config(image=self.expand_img)
+            width = 28 + self.collapse_btn.winfo_width() + self.menu_btn.winfo_width() + self.name_entry.winfo_width()
+            self.config(height=36, width=width)
+            self.collapsed = True
+
     def create_menu(self):
         menu = Menu(self.menu_btn, tearoff=0, postcommand=maintain_group_indices)
 
-        menu.add_command(label='Add'          , underline=0, command=       self.add_group             )
-        menu.add_command(label='Clone'        , underline=0, command=lambda:self.add_group (clone=True))
-        menu.add_command(label='Up'           , underline=0, command=lambda:self.move_group(offset=-1) )
-        menu.add_command(label='Down'         , underline=0, command=lambda:self.move_group(offset= 1) )
+        menu.add_command(label='Add'          , underline=0, command=        self.add_group             )
+        menu.add_command(label='Clone'        , underline=0, command=lambda: self.add_group (clone=True))
+        menu.add_command(label='Up'           , underline=0, command=lambda: self.move_group(offset=-1) )
+        menu.add_command(label='Down'         , underline=0, command=lambda: self.move_group(offset= 1) )
         menu.add_separator() #  -------------
-        menu.add_command(label='Clear history', underline=6, command=       self.clear_history         )
-        menu.add_command(label='Remove'       , underline=0, command=       self.remove_group          )
+        menu.add_command(label='Clear history', underline=6, command=        self.clear_history         )
+        menu.add_command(label='Remove'       , underline=0, command=        self.remove_group          )
 
         return menu
 
@@ -356,6 +389,7 @@ class RollerGroup(LabelFrame):
         for roller in self.rollers:
             roller.reset()
             roller.history = []
+        self.history_frame.config(text='History')
 
     def remove_group(self, override=False):
         if len(roller_groups) > 1 or override:
@@ -371,6 +405,8 @@ class RollerGroup(LabelFrame):
     def roll_group(self):
         for roller in self.rollers:
             roller.roll()
+
+        self.navigate_history()
 
         self.mainframe.editmenu.entryconfigure(
             self.mainframe.editmenu.index('end'), command=lambda: self.roll_group())
@@ -397,6 +433,7 @@ class RollerGroup(LabelFrame):
                 roller.modifier    .set(hist_dict['modifier'    ])
                 roller.results_text.set(hist_dict['results_text'])
                 roller.finalmod    .set(hist_dict['finalmod'    ])
+                self.history_frame.config(text=hist_dict['timestamp'])
             self.hist_index = desired_index
 
         self.maintain_result_widths()
@@ -407,6 +444,52 @@ class RollerGroup(LabelFrame):
             if w > 80:
                 w = 80
             roller.results_entry.config(width=w)
+
+
+class NumericSpinner(Frame):
+    def __init__(self, master, variable, low, high, interval=1, initial=0, callback=None):
+        Frame.__init__(self, master)
+
+        self.master   = master
+        self.low      = low
+        self.high     = high
+        self.interval = interval
+        self.variable = variable
+        self.callback = callback
+
+        if initial > low:
+            self.variable.set(initial)
+        else:
+            self.variable.set(low)
+
+        self.entry     = Entry(self, width=len(str(self.variable.get())), textvariable=self.variable, bd=0, font=('Courier', 14), state='readonly', relief='solid')
+        self.btn_frame = Frame(self)
+
+        self.up_arrow = PhotoImage(data=b'R0lGODlhCQAFAIABAAAAAP///yH5BAEKAAEALAAAAAAJAAUAAAILjAOnwIrcDJxvwgIAOw==')
+        self.dn_arrow = PhotoImage(data=b'R0lGODlhCQAFAIABAAAAAP///yH5BAEKAAEALAAAAAAJAAUAAAIKhH+BGYoNGWxgFgA7'    )
+
+        self.up_btn = Button(self.btn_frame, width=10, height=8, bd=0, image=self.up_arrow, repeatdelay=500, repeatinterval=100, command=lambda: self.step( 1))
+        self.dn_btn = Button(self.btn_frame, width=10, height=8, bd=0, image=self.dn_arrow, repeatdelay=500, repeatinterval=100, command=lambda: self.step(-1))
+
+        self.up_btn.grid(row=0)
+        self.dn_btn.grid(row=1)
+
+        self.entry    .grid(column=0, row=0            )
+        self.btn_frame.grid(column=1, row=0, padx=(2,0))
+
+    def step(self, m):
+        n = self.variable.get()
+        n += self.interval * m
+        if m:
+            if n > self.high:
+                self.variable.set(self.high)
+            elif n < self.low:
+                self.variable.set(self.low)
+            else:
+                self.variable.set(n)
+            if self.callback:
+                self.callback()
+        self.entry.config(width=len(str(n)))
 
 
 class Roller(Frame):
@@ -434,18 +517,18 @@ class Roller(Frame):
 
         default_font = ('Courier', 14)
 
-        self.menu_btn   = Menubutton(self, bd=1, relief='solid', font=('Courier', 8), text='\u25e2', takefocus=1, highlightthickness=1)
-        self.name_entry = Entry     (self, bd=1, relief='solid', font=('Verdana', 12), textvariable=self.name, width=16)
+        self.menu_btn   = Menubutton(self, bd=1, relief='solid', font=('Courier',  8), text='\u25e2', takefocus=1, highlightthickness=1)
+        self.name_entry = Entry     (self, bd=1, relief='solid', font=('Verdana', 12), width=16     , textvariable=self.name           )
 
-        self.dice_qty_spin  = Spinbox(self, bd=0, to=99 , from_=1  , width=2, relief='solid', state='readonly', textvariable=self.dice_qty , font=default_font, command=self.reset                                                )
-        self.die_faces_spin = Spinbox(self, bd=0, to=100, from_=2  , width=3, relief='solid', state='readonly', textvariable=self.die_faces, font=default_font, command=self.reset, increment=self.group.mainframe.allow_odd.get())
-        self.modifier_spin  = Spinbox(self, bd=0, to=100, from_=-99, width=3, relief='solid', state='readonly', textvariable=self.modifier , font=default_font, command=self.apply_modifiers                                      )
-        self.finalmod_spin  = Spinbox(self, bd=0, to=100, from_=-99, width=3, relief='solid', state='readonly', textvariable=self.finalmod , font=default_font, command=self.apply_modifiers                                      )
-        self.dice_lbl       = Label  (self, text=' d'    , font=default_font)
-        self.modifier_lbl   = Label  (self, text='\u002b', font=default_font)
-        self.finalmod_lbl   = Label  (self, text='\u002b', font=default_font)
+        self.dice_qty_spin  = NumericSpinner(self, self.dice_qty ,   1,  99, callback=self.reset                          , initial=1 )
+        self.die_faces_spin = NumericSpinner(self, self.die_faces,   2, 100, interval=self.group.mainframe.allow_odd.get(), initial=10)
+        self.modifier_spin  = NumericSpinner(self, self.modifier , -99, 100, callback=self.apply_modifiers                            )
+        self.finalmod_spin  = NumericSpinner(self, self.finalmod , -99, 100, callback=self.apply_modifiers                            )
+        self.dice_lbl       = Label(self, text=' d'    , font=default_font                                                            )
+        self.modifier_lbl   = Label(self, text='\u002b', font=default_font                                                            )
+        self.finalmod_lbl   = Label(self, text='\u002b', font=default_font                                                            )
 
-        self.roll_btn      = Button(self, bd=1, relief='solid', font=('Verdana', 10), text='\u21bb', command=lambda:self.roll(single=True))
+        self.roll_btn      = Button(self, bd=0, image=self.group.roll_img, command=lambda: self.roll(single=True))
         self.results_entry = Entry (self, bd=0, relief='solid', font=default_font, width=0, textvariable=self.results_text, state='readonly', justify='center')
 
         self.menu_btn.config(menu=self.create_menu())
@@ -457,8 +540,8 @@ class Roller(Frame):
         self.die_faces_spin.grid(row=index, column=4 , padx=(0, 0))
         self.modifier_lbl  .grid(row=index, column=5 , padx=(6, 6))
         self.modifier_spin .grid(row=index, column=6 , padx=(0, 0))
-        self.roll_btn      .grid(row=index, column=7 , padx=(4, 0))
-        self.results_entry .grid(row=index, column=8 , padx=(4, 0))
+        self.roll_btn      .grid(row=index, column=7 , padx=(8, 0))
+        self.results_entry .grid(row=index, column=8 , padx=(8, 0))
         self.finalmod_lbl  .grid(row=index, column=9 , padx=(6, 6))
         self.finalmod_spin .grid(row=index, column=10, padx=(0, 4))
 
@@ -471,23 +554,24 @@ class Roller(Frame):
     def create_menu(self):
         menu = Menu(self.menu_btn, tearoff=0, postcommand=self.group.maintain_roller_indices)
 
-        menu.add_command(label='Add'   , underline=0, command=       self.add_roller             )
-        menu.add_command(label='Clone' , underline=0, command=lambda:self.add_roller (clone=True))
-        menu.add_command(label='Up'    , underline=0, command=lambda:self.move_roller(offset=-1) )
-        menu.add_command(label='Down'  , underline=0, command=lambda:self.move_roller(offset= 1) )
+        menu.add_command(label='Add'   , underline=0, command=        self.add_roller             )
+        menu.add_command(label='Clone' , underline=0, command=lambda: self.add_roller (clone=True))
+        menu.add_command(label='Up'    , underline=0, command=lambda: self.move_roller(offset=-1) )
+        menu.add_command(label='Down'  , underline=0, command=lambda: self.move_roller(offset= 1) )
         menu.add_separator() #  ------
-        menu.add_command(label='Remove', underline=0, command=       self.remove_roller          )
+        menu.add_command(label='Remove', underline=0, command=        self.remove_roller          )
 
         return menu
 
     def create_hist_record(self):
         record = {
-            'dice_qty'    : self.dice_qty    .get(),
-            'die_faces'   : self.die_faces   .get(),
-            'modifier'    : self.modifier    .get(),
-            'results_text': self.results_text.get(),
-            'finalmod'    : self.finalmod    .get(),
-            'results'     : self.results           }
+            'dice_qty'    : self.dice_qty    .get() ,
+            'die_faces'   : self.die_faces   .get() ,
+            'modifier'    : self.modifier    .get() ,
+            'results_text': self.results_text.get() ,
+            'finalmod'    : self.finalmod    .get() ,
+            'timestamp'   : str(dt.now().time())[:8],
+            'results'     : self.results            }
         return record
 
     def add_roller(self, clone=False):
@@ -505,9 +589,12 @@ class Roller(Frame):
             roller.die_faces.set(self.die_faces.get())
             roller.modifier .set(self.modifier .get())
             roller.finalmod .set(self.finalmod .get())
+            roller.reset()
 
         for h in self.history:
-            roller.history.append(roller.create_hist_record())
+            record = roller.create_hist_record()
+            record['timestamp'] = h['timestamp']
+            roller.history.append(record)
 
         roller.apply_modifiers()
 
@@ -539,14 +626,20 @@ class Roller(Frame):
             self.group.rollers.remove(self)
             self.name.set('')
 
-    def reset(self):
+    def reset(self, loading=False):
         self.results = [0 for i in range(self.dice_qty.get())]
-        self.apply_modifiers()
-        self.group.maintain_result_widths()
+        if not loading:
+            self.apply_modifiers()
+            self.group.maintain_result_widths()
 
     def roll(self, single=False):
-        rolls    = self.dice_qty .get()
-        sides    = self.die_faces.get()
+        rolls = self.dice_qty .get()
+        sides = self.die_faces.get()
+
+        if self.group.mainframe.allow_odd.get() % 2 == 0 and sides % 2 != 0:
+            self.die_faces.set(sides - 1)
+            sides -= 1
+
         mod      = self.modifier .get()
         fmod     = self.finalmod .get()
         max_roll = sides
