@@ -200,10 +200,6 @@ class MainFrame(Frame):
                         getattr(roller, attr).set(value)
                     except AttributeError:
                         setattr(roller, attr, value)
-                roller.dice_qty_spin .step(0)
-                roller.die_faces_spin.step(0)
-                roller.modifier_spin .step(0)
-                roller.finalmod_spin .step(0)
                 roller.reset(loading=True)
                 h = len(roller.history) - 1
                 r += 1
@@ -628,6 +624,10 @@ class Roller(Frame):
 
     def reset(self, loading=False):
         self.results = [0 for i in range(self.dice_qty.get())]
+        self.dice_qty_spin .step(0)
+        self.die_faces_spin.step(0)
+        self.modifier_spin .step(0)
+        self.finalmod_spin .step(0)
         if not loading:
             self.apply_modifiers()
             self.group.maintain_result_widths()
